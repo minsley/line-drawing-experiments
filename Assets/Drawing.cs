@@ -2,9 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Freya;
 using Shapes;
 using UnityEngine;
-using Random = System.Random;
 
 [ExecuteAlways]
 public class Drawing : ImmediateModeShapeDrawer
@@ -28,6 +28,11 @@ public class Drawing : ImmediateModeShapeDrawer
     {
         Init();
     }
+
+    // private void Update()
+    // {
+    //     throw new NotImplementedException();
+    // }
 
     public override void DrawShapes(Camera cam)
     {
@@ -84,7 +89,7 @@ public class Drawing : ImmediateModeShapeDrawer
                     floatHeight,
                     skew,
                     Time.time, 
-                    new Vector3(i - field.x/2, 0, j - field.z/2) * spacing));
+                    new Vector3(i - (field.x-1)/2f, 0, j - (field.z-1)/2f) * spacing));
             }
         }
     }
@@ -100,6 +105,8 @@ public class Drawing : ImmediateModeShapeDrawer
         public float timeOffset;
         public Vector3 posOffset;
 
+        public BezierCubic2D bez;
+
         public Box(float length, float duration, float floatHeight, float skew, float timeOffset, Vector3 posOffset)
         {
             this.length = length;
@@ -112,27 +119,42 @@ public class Drawing : ImmediateModeShapeDrawer
             var halfLen = length / 2;
             cornerStarts = new[]
             {
-                new Vector3(-halfLen, 0, -halfLen) + posOffset,
-                new Vector3(-halfLen, 0, halfLen) + posOffset,
-                new Vector3(halfLen, 0, halfLen) + posOffset,
-                new Vector3(halfLen, 0, -halfLen) + posOffset,
-                new Vector3(-halfLen, length, -halfLen) + posOffset,
-                new Vector3(-halfLen, length, halfLen) + posOffset,
-                new Vector3(halfLen, length, halfLen) + posOffset,
-                new Vector3(halfLen, length, -halfLen) + posOffset,
+                new Vector3(-halfLen, 0, -halfLen),
+                new Vector3(-halfLen, 0, halfLen),
+                new Vector3(halfLen, 0, halfLen),
+                new Vector3(halfLen, 0, -halfLen),
+                new Vector3(-halfLen, length, -halfLen),
+                new Vector3(-halfLen, length, halfLen),
+                new Vector3(halfLen, length, halfLen),
+                new Vector3(halfLen, length, -halfLen),
             };
 
-            var heightOffset = new Vector3(0, floatHeight, 0);
             cornerEnds = cornerStarts.ToArray();
             for(var i=0; i<cornerEnds.Length; i++)
             {
-                cornerEnds[i] += UnityEngine.Random.insideUnitSphere * length * skew + heightOffset;
+                cornerEnds[i] = UnityEngine.Random.insideUnitSphere * length * skew;
             }
+            
+            bez = new BezierCubic2D(
+                Vector2.zero, 
+                new Vector2(0.44f, -1.41f), 
+                new Vector2(0.46f, 0.24f)*0.5f, 
+                Vector2.one*0.5f);
         }
 
+        // private BezierCubic3D _bez = new BezierCubic3D(0.81f, -0.34f, 0.65f, 0.92f);
         public Vector3 GetCorner(int i, float t)
         {
-            return Vector3.Lerp(cornerStarts[i], cornerEnds[i], t);
+            var start = cornerStarts[i];
+            var end = cornerEnds[i];
+            var heightOffset = new Vector3(0, floatHeight, 0);
+            var offset = bez.GetPointY(t);
+            var horizOffset = new Vector3(start.x.Sign() * offset, 0, start.z.Sign() * offset);
+
+            start += posOffset;
+            end += posOffset + heightOffset + horizOffset;
+            
+            return Vector3.Lerp(start, end, t);
         }
     }
 }
