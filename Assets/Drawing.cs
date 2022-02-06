@@ -16,7 +16,24 @@ public class Drawing : ImmediateModeShapeDrawer
     public float spacing = 1.5f;
     public Vector3Int field = new Vector3Int(6, 8, 6);
 
+    public Vector2[] opacityMap =
+    {
+        new(0f, 0),
+        new(0.1f, 1),
+        new(0.7f, 1),
+        new(1f, 0)
+    };
+
+    public Vector2[] bezier =
+    {
+        Vector2.zero,
+        new (0.44f, -1.41f),
+        new (0f, 0.46f),
+        new (0.5f, 0.5f)
+    };
+
     private readonly List<Box> _boxes = new List<Box>();
+    private BezierCubic2D _horizOffsetCurve;
 
     public override void OnEnable()
     {
@@ -38,7 +55,7 @@ public class Drawing : ImmediateModeShapeDrawer
     {
         using (Draw.Command(cam))
         {
-            Draw.LineGeometry = LineGeometry.Volumetric3D;
+            Draw.LineGeometry = LineGeometry.Billboard;
             Draw.ThicknessSpace = ThicknessSpace.Meters;
             Draw.Thickness = 0.005f;
             Draw.Matrix = transform.localToWorldMatrix;
@@ -53,14 +70,14 @@ public class Drawing : ImmediateModeShapeDrawer
             }
         }
     }
-
+    
     private void DrawBoxAtLayer(Box box, int layer)
     {
         var t = (Time.time - box.timeOffset - duration*layer/field.y) % duration / duration;
 
         if (t <= 0) return;
         
-        Draw.Opacity = Mathf.Lerp(1, 0, t);
+        Draw.Opacity = MultiLerp(t, opacityMap);
         Draw.Line(box.GetCorner(0, t), box.GetCorner(1, t));
         Draw.Line(box.GetCorner(1, t), box.GetCorner(2, t));
         Draw.Line(box.GetCorner(2, t), box.GetCorner(3, t));
@@ -77,6 +94,8 @@ public class Drawing : ImmediateModeShapeDrawer
 
     private void Init()
     {
+        _horizOffsetCurve = new(bezier[0], bezier[1], bezier[2], bezier[3]);
+        
         _boxes.Clear();
         
         for (int i = 0; i < field.x; i++)
@@ -89,8 +108,34 @@ public class Drawing : ImmediateModeShapeDrawer
                     floatHeight,
                     skew,
                     Time.time, 
-                    new Vector3(i - (field.x-1)/2f, 0, j - (field.z-1)/2f) * spacing));
+                    new Vector3(i - (field.x-1)/2f, 0, j - (field.z-1)/2f) * spacing,
+                    _horizOffsetCurve));
             }
+        }
+    }
+
+    private float MultiLerp(float t, params Vector2[] breakpoints)
+    {
+        switch (breakpoints.Length)
+        {
+            case 0: return t;
+            case 1: return breakpoints[0].y;
+            default:
+                int next = 0;
+                for (int i = 0; i < breakpoints.Length; i++)
+                {
+                    if (breakpoints[i].x <= t) continue;
+
+                    next = i;
+                    break;
+                }
+
+                if (next == 0) return breakpoints[next].y;
+
+                var a = breakpoints[next - 1];
+                var b = breakpoints[next];
+                
+                return Mathf.Lerp(a.y, b.y, Mathf.InverseLerp(a.x, b.x, t));
         }
     }
 
@@ -104,10 +149,9 @@ public class Drawing : ImmediateModeShapeDrawer
         public float skew;
         public float timeOffset;
         public Vector3 posOffset;
+        public BezierCubic2D horizOffsetCurve;
 
-        public BezierCubic2D bez;
-
-        public Box(float length, float duration, float floatHeight, float skew, float timeOffset, Vector3 posOffset)
+        public Box(float length, float duration, float floatHeight, float skew, float timeOffset, Vector3 posOffset, BezierCubic2D horizOffsetCurve)
         {
             this.length = length;
             this.duration = duration;
@@ -115,6 +159,7 @@ public class Drawing : ImmediateModeShapeDrawer
             this.skew = skew;
             this.timeOffset = timeOffset;
             this.posOffset = posOffset;
+            this.horizOffsetCurve = horizOffsetCurve;
 
             var halfLen = length / 2;
             cornerStarts = new[]
@@ -134,21 +179,14 @@ public class Drawing : ImmediateModeShapeDrawer
             {
                 cornerEnds[i] = UnityEngine.Random.insideUnitSphere * length * skew;
             }
-            
-            bez = new BezierCubic2D(
-                Vector2.zero, 
-                new Vector2(0.44f, -1.41f), 
-                new Vector2(0.46f, 0.24f)*0.5f, 
-                Vector2.one*0.5f);
         }
 
-        // private BezierCubic3D _bez = new BezierCubic3D(0.81f, -0.34f, 0.65f, 0.92f);
         public Vector3 GetCorner(int i, float t)
         {
             var start = cornerStarts[i];
             var end = cornerEnds[i];
             var heightOffset = new Vector3(0, floatHeight, 0);
-            var offset = bez.GetPointY(t);
+            var offset = horizOffsetCurve.GetPointY(t);
             var horizOffset = new Vector3(start.x.Sign() * offset, 0, start.z.Sign() * offset);
 
             start += posOffset;
