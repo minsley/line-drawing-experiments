@@ -1,4 +1,6 @@
 # Line Drawing Experiments
+![Cube decay gif](Artifacts~/20220206-05.gif)
+<!-- <img src="Artifacts~/20220206-05.gif" width="400" height="400" /> -->
 
 ## Dependencies
 1. git & git-lfs
