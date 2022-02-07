@@ -7,7 +7,7 @@ using Shapes;
 using UnityEngine;
 
 [ExecuteAlways]
-public class Drawing : ImmediateModeShapeDrawer
+public class Ascension : ImmediateModeShapeDrawer
 {
     public float lineLength = 0.5f;
     public float skew = 2;
